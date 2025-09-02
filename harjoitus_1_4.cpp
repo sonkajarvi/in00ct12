@@ -1,44 +1,76 @@
 // g++ -O2 -std=c++17 harjoitus_1_4.cpp -o harjoitus_1_4
 
+#include <cmath>
 #include <algorithm>
 #include <iostream>
 #include <numeric>
 #include <vector>
+#include <string>
+#include <string_view>
 
-static inline void dump(const std::vector<unsigned long>& v)
+// Helper for printing averages, mainly for printing zeros instead of NaNs
+static inline double avg(double a, double b)
 {
-    for (const unsigned long& k : v)
-        std::cout << k << "\n";
+    double c = a / b;
+    if (std::isnan(c))
+        return 0.0;
+    return c;
 }
 
-static inline void dump2(std::vector<unsigned long>& v)
+void assignment_4(void)
 {
-    unsigned long sum;
+    std::vector<long> e, o;     // vectors for even and odd numbers
+    std::string tmp;            // temporary string
+    long sum;
 
-    std::sort(v.begin(), v.end());
+    std::cout << "use 'q' to quit. prints a summary after\n";
 
-    dump(v);
-    std::cout << "count: " << v.size() << "\n";
+    // Ask for numbers until q
+    do {
+        std::cout << "enter <number>: ";
 
-    sum = std::accumulate(v.cbegin(), v.cend(), 0);
-    std::cout << "sum: " << sum << "\n";
-    std::cout << "avg: " << (double)sum / v.size() << "\n";
+        std::cin >> tmp;
+        if (tmp == "q")
+            break;
+
+        // Convert string to number while handling errors
+        try {
+            sum = std::stol(tmp.c_str());   // use sum as a temporary value
+            if (sum & 1)
+                o.push_back(sum);
+            else
+                e.push_back(sum);
+        } catch (std::invalid_argument) {
+            std::cerr << "NOT A NUMBER!!1\n";
+        } catch (std::out_of_range) {
+            std::cerr << "NUMBER TOO BIG. TRY 0\n";
+        }
+    } while (1);
+
+    auto helper = [&sum](std::vector<long>& v, std::string_view title) {
+        std::cout << title << ":\n";
+
+        // Print count, sum and average
+        std::cout << "  count: " << v.size() << "\n";
+        sum = std::accumulate(v.cbegin(), v.cend(), 0);
+        std::cout << "  sum: " << sum << "\n";
+        std::cout << "  avg: " << avg(sum, v.size()) << "\n";
+
+        // Sort numbers in ascending order and print them
+        std::sort(v.begin(), v.end());
+        std::cout << "  ";
+        for (auto& n : v)
+            std::cout << n << " ";
+        std::cout << "\n";
+    };
+
+    helper(e, "even");
+    helper(o, "odd");
 }
 
-int main(int argc, char **argv)
+#ifndef ASSIGNMENT_6
+int main(void)
 {
-    std::vector<unsigned long> odd, even;
-    unsigned long tmp;
-
-    for (int i = 1; i < argc; i++) {
-        tmp = std::strtoul(argv[i], nullptr, 10);
-
-        if (tmp & 1)
-            odd.push_back(tmp);
-        else
-            even.push_back(tmp);
-    }
-
-    dump2(even);
-    dump2(odd);
+    assignment_4();
 }
+#endif

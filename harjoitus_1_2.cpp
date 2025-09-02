@@ -2,38 +2,56 @@
 
 #include <algorithm>
 #include <iostream>
-#include <string_view>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
+// Helper for printing vectors
 template <typename T>
-static inline void dump(const std::vector<T>& v)
+static inline void print_vector(const std::vector<T>& v)
 {
     for (const T& k : v)
-        std::cout << k << "\n";
+        std::cout << "  " << k << "\n";
 }
 
-int main(int argc, char **argv)
+void assignment_2(void)
 {
-    std::vector<std::string_view> v;
+    std::vector<std::string> v;     // vector of names
+    std::string tmp;                // temporary string
 
-    for (int i = 1; i < argc; i++)
-        v.push_back(argv[i]);
+    std::cout << "use 'q' to quit. prints a summary after\n";
 
-    std::sort(v.begin(), v.end());
-    dump(v);
+    // Ask for names until q
+    do {
+        std::cout << "enter <name>: ";
 
-    std::cout << "total: " << v.size() << "\n";
-
-    while (!v.empty()) {
-        if (v.size() == 1) {
-            v.pop_back();
+        std::cin >> tmp;
+        if (tmp == "q")
             break;
-        }
 
-        v.erase(v.cbegin());
+        v.push_back(std::move(tmp));
+    } while (1);
+
+    // Sort and print names
+    std::sort(v.begin(), v.end());
+    std::cout << "total: " << v.size() << "\n";
+    print_vector(v);
+
+    // Remove the first and last element
+    while (!v.empty()) {
+        // Pop the first element only if vector has two or more elements
+        if (v.size() > 1)
+            v.erase(v.cbegin());
         v.pop_back();
 
-        std::cout << "\n";
-        dump(v);
-    }
+        std::cout << "total: " << v.size() << "\n";
+        print_vector(v);
+    };
 }
+
+#ifndef ASSIGNMENT_6
+int main(void)
+{
+    assignment_2();
+}
+#endif

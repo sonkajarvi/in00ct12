@@ -2,10 +2,18 @@
 
 #include <iostream>
 
-int main(void)
+void assignment_1(void)
 {
-    unsigned char i;
+    unsigned char i = 0;
 
     for (;;)
-        std::cout << (int)i++ << "\n";
+        std::cout << static_cast<int>(i++) << "\n";
 }
+
+// Do not include main() when built as part of assignment 6
+#ifndef ASSIGNMENT_6
+int main(void)
+{
+    assignment_1();
+}
+#endif
