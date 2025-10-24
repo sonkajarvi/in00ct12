@@ -1,14 +1,23 @@
 // g++ -O2 -w -std=c++17 -lpthread harjoitus_2.cpp -o harjoitus_2
 
+// Ohjelman käyttö:
+//
+//   ./harjoitus_2 <process|thread> <rottien määrä>
+//
+//
+// Suoritettu:
+//
+//   1) Jokainen rotta on oma lapsiprosessinsa. Labyrintti on jaetussa muistissa.
+//   2) Jokainen rotta on oma säikeensä.
+
+#include <pthread.h>    // pthread_t, pthread_create, pthread_join
 #include <sys/mman.h>   // mmap, munmap
-#include <unistd.h>     // usleep, getpid
 #include <sys/wait.h>   // wait
+#include <unistd.h>     // usleep, getpid
 
 #include <cstdlib>      // exit
 #include <cstdio>       // printf
 #include <cstring>      // memcpy, atoi
-#include <iostream>
-#include <string>
 #include <vector>
 
 #if 1
@@ -194,7 +203,7 @@ Sijainti findBegin() {
     return alkusijainti;
 }
 
-bool tutkiUp(Sijainti nykysijainti, auto& reitti, LiikkumisSuunta prevDir) {
+bool tutkiUp(Sijainti nykysijainti, std::vector<Ristaus>& reitti, LiikkumisSuunta prevDir) {
     int yindex = KORKEUS - 1 - nykysijainti.ykoord - 1;
 
     if (yindex < 0)
@@ -218,7 +227,7 @@ bool tutkiUp(Sijainti nykysijainti, auto& reitti, LiikkumisSuunta prevDir) {
     return true;
 }
 
-bool tutkiDown(Sijainti nykysijainti, auto& reitti, LiikkumisSuunta prevDir) {
+bool tutkiDown(Sijainti nykysijainti, std::vector<Ristaus>& reitti, LiikkumisSuunta prevDir) {
     int yindex = KORKEUS - 1 - nykysijainti.ykoord + 1;
 
     if (yindex > KORKEUS-1)
@@ -242,7 +251,7 @@ bool tutkiDown(Sijainti nykysijainti, auto& reitti, LiikkumisSuunta prevDir) {
     return true;
 }
 
-bool tutkiLeft(Sijainti nykysijainti, auto& reitti, LiikkumisSuunta prevDir) {
+bool tutkiLeft(Sijainti nykysijainti, std::vector<Ristaus>& reitti, LiikkumisSuunta prevDir) {
     int yindex = KORKEUS - 1 - nykysijainti.ykoord;
     int xindex = nykysijainti.xkoord - 1;
 
@@ -267,7 +276,7 @@ bool tutkiLeft(Sijainti nykysijainti, auto& reitti, LiikkumisSuunta prevDir) {
     return true;
 }
 
-bool tutkiRight(Sijainti nykysijainti, auto& reitti, LiikkumisSuunta prevDir) {
+bool tutkiRight(Sijainti nykysijainti, std::vector<Ristaus>& reitti, LiikkumisSuunta prevDir) {
     int yindex = KORKEUS - 1 - nykysijainti.ykoord;
     int xindex = nykysijainti.xkoord + 1;
 
@@ -292,7 +301,7 @@ bool tutkiRight(Sijainti nykysijainti, auto& reitti, LiikkumisSuunta prevDir) {
     return true;
 }
 
-LiikkumisSuunta findNext(bool onkoRistaus, Sijainti nykysijainti, LiikkumisSuunta prevDir, auto& reitti) {
+LiikkumisSuunta findNext(bool onkoRistaus, Sijainti nykysijainti, LiikkumisSuunta prevDir, std::vector<Ristaus>& reitti) {
     if (!onkoRistaus) {
         if (tutkiLeft(nykysijainti, reitti, prevDir) && prevDir != RIGHT)
             return LEFT;
@@ -349,7 +358,7 @@ Sijainti moveRight(Sijainti nykysijainti) {
     return nykysijainti;
 }
 
-LiikkumisSuunta doRistaus(Sijainti risteyssijainti, LiikkumisSuunta prevDir, auto& reitti) {
+LiikkumisSuunta doRistaus(Sijainti risteyssijainti, LiikkumisSuunta prevDir, std::vector<Ristaus>& reitti) {
     LiikkumisSuunta nextDir;
 
     nextDir = findNext(true, risteyssijainti, prevDir, reitti);
