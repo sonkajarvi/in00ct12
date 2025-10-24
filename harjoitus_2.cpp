@@ -6,7 +6,7 @@
 
 #include <cstdlib>      // exit
 #include <cstdio>       // printf
-#include <cstring>      // memcpy
+#include <cstring>      // memcpy, atoi
 #include <iostream>
 #include <string>
 #include <vector>
@@ -442,46 +442,66 @@ int aloitaRotta(int id) {
     return liikkuCount;
 }
 
-int main() {
-    constexpr int thread_count = 5;
-    pthread_t threads[thread_count];
-    int thread_args[thread_count];
+void usage(const char *who)
+{
+    std::printf("Usage: %s <process|thread> <rat count>\n", who);
+    std::exit(1);
+}
+
+int main(int argc, char **argv) {
+    int rat_count;
+    std::vector<pthread_t> threads;
+    std::vector<int> thread_args;
     int ret;
     void *addr;
     int pid;
 
+    if (argc < 3)
+        usage(argv[0]);
+
+    // Luetaan argumentit.
+    rat_count = std::atoi(argv[2]);
+    std::printf("Rottien määrä: %d\n", rat_count);
+
     // Prosessit
-    {
-        // // Luodaan jaettu muisti mmap-funktion avulla.
-        // addr = mmap(NULL, sizeof(labyrintti), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-        // if (addr == MAP_FAILED)
-        //     return -1;
+    if (argv[1][0] == 'p') {
+        std::printf("Käytetään prosesseja\n");
 
-        // memcpy(addr, labyrintti, sizeof(labyrintti));
-        // // Otetaan kirjoitusoikeudet pois.
-        // mprotect(addr, sizeof(labyrintti), PROT_READ);
+        // Luodaan jaettu muisti mmap-funktion avulla.
+        addr = mmap(NULL, sizeof(labyrintti), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+        if (addr == MAP_FAILED)
+            return -1;
 
-        // // Luodaan lapsiprosessit.
-        // for (int i = 0; i < 5; i++) {
-        //     pid = fork();
-        //     if (pid == -1)
-        //         continue;
+        memcpy(addr, labyrintti, sizeof(labyrintti));
+        // Otetaan kirjoitusoikeudet pois.
+        mprotect(addr, sizeof(labyrintti), PROT_READ);
 
-        //     if (pid > 0) {
-        //         wait(nullptr);
-        //     } else {
-        //         aloitaRotta(getpid());
-        //         std::exit(0);
-        //     }
-        // }
+        // Luodaan lapsiprosessit.
+        for (int i = 0; i < rat_count; i++) {
+            pid = fork();
+            if (pid == -1)
+                continue;
 
-        // munmap(addr, sizeof(labyrintti));
+            if (pid > 0) {
+                wait(nullptr);
+            } else {
+                aloitaRotta(getpid());
+                std::exit(0);
+            }
+        }
+
+        munmap(addr, sizeof(labyrintti));
     }
 
     // Säikeet
-    {
+    else if (argv[1][0] == 't') {
+        std::printf("Käytetään säikeitä\n");
+
+        threads.reserve(rat_count);
+        thread_args.reserve(rat_count);
+
         // Luodaan säikeet pthread-kirjaston avulla.
-        for (int i = 0; i < thread_count; i++) {
+        for (int i = 0; i < rat_count; i++) {
             thread_args[i] = i;
 
             auto helper = [](void *args) -> void * {
@@ -495,11 +515,16 @@ int main() {
         }
 
         // Odotetaan säikeitä
-        for (int i = 0; i < thread_count; i++) {
+        for (int i = 0; i < rat_count; i++) {
             ret = pthread_join(threads[i], NULL);
             if (!ret)
                 continue;
         }
+    }
+
+    // Tuntematon argumentti.
+    else {
+        usage(argv[0]);
     }
 
     std::printf("Kaikki rotat ulkona!\n");
