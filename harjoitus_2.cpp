@@ -9,16 +9,19 @@
 //
 //   1) Jokainen rotta on oma lapsiprosessinsa. Labyrintti on jaetussa muistissa.
 //   2) Jokainen rotta on oma säikeensä.
+//   3) Sijantikarttaa päivitetään semaforin avulla.
+//   4) Sijantikarttaa päivitetään semaforin avulla.
 
-#include <pthread.h>    // pthread_t, pthread_create, pthread_join
-#include <sys/mman.h>   // mmap, munmap
-#include <sys/wait.h>   // wait
-#include <unistd.h>     // usleep, getpid
+#include <pthread.h>        // pthread_t, pthread_create, pthread_join
+#include <semaphore.h>      // sem_t, sem_init, sem_destroy, sem_wait, sem_post
+#include <sys/mman.h>       // mmap, munmap
+#include <sys/wait.h>       // wait
+#include <unistd.h>         // usleep, getpid
 
-#include <cstdlib>      // exit
-#include <cstdio>       // printf
-#include <cstring>      // memcpy, atoi
-#include <vector>
+#include <cstdlib>          // exit
+#include <cstdio>           // printf
+#include <cstring>          // memcpy, atoi
+#include <vector>           // vector
 
 #if 1
 
@@ -144,6 +147,10 @@ int labyrintti[KORKEUS][LEVEYS] = {
 };
 
 #endif
+
+// Sijaintikartta
+int *pm_addr;
+sem_t *pm_mutex;
 
 struct Sijainti {
     int ykoord {0};
@@ -385,12 +392,27 @@ int aloitaRotta(int id) {
     LiikkumisSuunta nextDir {DEFAULT};
 
     while (labyrintti[KORKEUS - 1 - rotanSijainti.ykoord][rotanSijainti.xkoord] != 4) {
+        // Odotetaan kirjoitusoikeutta.
+        sem_wait(pm_mutex);
+
+        // Kirjoitetaan rotan sijainti karttaan, ja tulostetaan kartta.
+        pm_addr[KORKEUS - 1 - rotanSijainti.ykoord + rotanSijainti.xkoord * LEVEYS] = id;
+
+        printf("\n=========================================\n");
+        for (int y = 0; y < KORKEUS ; y++) {
+            for (int x = 0; x < LEVEYS ; x++){
+                printf("%5d ", pm_addr[x * KORKEUS + y]);
+            }
+            printf("\n");
+        }
+        printf("=========================================\n");
+
+        pm_addr[KORKEUS - 1 - rotanSijainti.ykoord + rotanSijainti.xkoord * LEVEYS] = 0;
+
         if (labyrintti[KORKEUS - 1 - rotanSijainti.ykoord][rotanSijainti.xkoord] == 2)
             nextDir = doRistaus(rotanSijainti, prevDir, reitti);
         else
             nextDir = findNext(false, rotanSijainti, prevDir, reitti);
-
-        // std::printf("%d: %d,%d\n", id, rotanSijainti.ykoord, rotanSijainti.xkoord);
 
         switch (nextDir) {
         case UP:
@@ -442,6 +464,8 @@ int aloitaRotta(int id) {
             break;
         }
 
+        sem_post(pm_mutex);
+
         liikkuCount++;
         usleep(10);
     }
@@ -485,6 +509,15 @@ int main(int argc, char **argv) {
         // Otetaan kirjoitusoikeudet pois.
         mprotect(addr, sizeof(labyrintti), PROT_READ);
 
+        // Luodaan jaettu muisti sijaintikarttalle.
+        pm_addr = (int *)mmap(NULL, sizeof(labyrintti) + sizeof(*pm_mutex), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+        if (pm_addr == MAP_FAILED)
+            return -1;
+
+        memset(pm_addr, 0, sizeof(labyrintti));
+        pm_mutex = (sem_t *)&pm_addr[sizeof(labyrintti)];
+        sem_init(pm_mutex, 0, 1);
+
         // Luodaan lapsiprosessit.
         for (int i = 0; i < rat_count; i++) {
             pid = fork();
@@ -500,6 +533,8 @@ int main(int argc, char **argv) {
         }
 
         munmap(addr, sizeof(labyrintti));
+        sem_destroy(pm_mutex);
+        munmap(pm_addr, sizeof(labyrintti) + sizeof(*pm_mutex));
     }
 
     // Säikeet
@@ -509,9 +544,16 @@ int main(int argc, char **argv) {
         threads.reserve(rat_count);
         thread_args.reserve(rat_count);
 
+        // Luodaan sijaintikartta.
+        pm_addr = new int[KORKEUS * LEVEYS];
+        memset(pm_addr, 0, sizeof(labyrintti));
+
+        pm_mutex = new sem_t[1];
+        sem_init(pm_mutex, 0, 1);
+
         // Luodaan säikeet pthread-kirjaston avulla.
         for (int i = 0; i < rat_count; i++) {
-            thread_args[i] = i;
+            thread_args[i] = i + 9999;
 
             auto helper = [](void *args) -> void * {
                 aloitaRotta(*(int *)args);
@@ -529,6 +571,10 @@ int main(int argc, char **argv) {
             if (!ret)
                 continue;
         }
+
+        delete pm_addr;
+        sem_destroy(pm_mutex);
+        delete pm_mutex;
     }
 
     // Tuntematon argumentti.
