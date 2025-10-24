@@ -1,15 +1,15 @@
 // g++ -O2 -w -std=c++17 -lpthread harjoitus_2.cpp -o harjoitus_2
 
-#include <iostream>
-#include <vector>
-#include <string>
+#include <sys/mman.h>   // mmap, munmap
+#include <unistd.h>     // usleep, getpid
+#include <sys/wait.h>   // wait
 
-#include <sys/shm.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <semaphore.h>
-#include <pthread.h>
+#include <cstdlib>      // exit
+#include <cstdio>       // printf
+#include <cstring>      // memcpy
+#include <iostream>
+#include <string>
+#include <vector>
 
 #if 1
 
@@ -164,12 +164,10 @@ struct Ristaus {
     LiikkumisSuunta tutkittavana = DEFAULT;
 };
 
-struct Karttavirhe {
-    int koodi {0};
-    std::string msg;
-};
-
-int aloitaRotta();
+// struct Karttavirhe {
+//     int koodi {0};
+//     std::string msg;
+// };
 
 Sijainti etsiKartasta(int kohde) {
     Sijainti kartalla;
@@ -370,8 +368,8 @@ LiikkumisSuunta doRistaus(Sijainti risteyssijainti, LiikkumisSuunta prevDir, aut
     return nextDir;
 }
 
-int aloitaRotta() {
-    int liikkuCount=0;
+int aloitaRotta(int id) {
+    int liikkuCount = 0;
     std::vector<Ristaus> reitti;
     Sijainti rotanSijainti = findBegin();
     LiikkumisSuunta prevDir {DEFAULT};
@@ -382,6 +380,8 @@ int aloitaRotta() {
             nextDir = doRistaus(rotanSijainti, prevDir, reitti);
         else
             nextDir = findNext(false, rotanSijainti, prevDir, reitti);
+
+        // std::printf("%d: %d,%d\n", id, rotanSijainti.ykoord, rotanSijainti.xkoord);
 
         switch (nextDir) {
         case UP:
@@ -401,12 +401,12 @@ int aloitaRotta() {
             prevDir = RIGHT;
             break;
         case DEFAULT:
-            std::cout << "Umpikuja: " << "Ruutu: " << rotanSijainti.ykoord << "," << rotanSijainti.xkoord << std::endl;
+            std::printf("%d: Umpikuja: %d,%d\n", id, rotanSijainti.ykoord, rotanSijainti.xkoord);
 
             rotanSijainti.ykoord = reitti.back().kartalla.ykoord;
             rotanSijainti.xkoord = reitti.back().kartalla.xkoord;
 
-            std::cout << "Palattu: " << "Ruutu: " << rotanSijainti.ykoord << "," << rotanSijainti.xkoord << std::endl;
+            std::printf("%d: Palattu: %d,%d\n", id, rotanSijainti.ykoord, rotanSijainti.xkoord);
 
             switch (reitti.back().tutkittavana) {
             case UP:
@@ -427,7 +427,7 @@ int aloitaRotta() {
                 reitti.back().right.jatkom = OPENING;
                 break;
             default:
-                std::cout << "Ei pitäisi tapahtua! Joku ongelma jos tämä tulostus tulee!" << std::endl;
+                std::printf("%d: Ei pitäisi tapahtua! Joku ongelma jos tämä tulostus tulee!\n", id);
                 break;
             }
             break;
@@ -437,13 +437,72 @@ int aloitaRotta() {
         usleep(10);
     }
 
+    std::printf("%d: Ulkona!\n", id);
+
     return liikkuCount;
 }
 
 int main() {
-    aloitaRotta();
+    constexpr int thread_count = 5;
+    pthread_t threads[thread_count];
+    int thread_args[thread_count];
+    int ret;
+    void *addr;
+    int pid;
 
-    std::cout << "Kaikki rotat ulkona!" << std::endl;
+    // Prosessit
+    {
+        // // Luodaan jaettu muisti mmap-funktion avulla.
+        // addr = mmap(NULL, sizeof(labyrintti), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+        // if (addr == MAP_FAILED)
+        //     return -1;
+
+        // memcpy(addr, labyrintti, sizeof(labyrintti));
+        // // Otetaan kirjoitusoikeudet pois.
+        // mprotect(addr, sizeof(labyrintti), PROT_READ);
+
+        // // Luodaan lapsiprosessit.
+        // for (int i = 0; i < 5; i++) {
+        //     pid = fork();
+        //     if (pid == -1)
+        //         continue;
+
+        //     if (pid > 0) {
+        //         wait(nullptr);
+        //     } else {
+        //         aloitaRotta(getpid());
+        //         std::exit(0);
+        //     }
+        // }
+
+        // munmap(addr, sizeof(labyrintti));
+    }
+
+    // Säikeet
+    {
+        // Luodaan säikeet pthread-kirjaston avulla.
+        for (int i = 0; i < thread_count; i++) {
+            thread_args[i] = i;
+
+            auto helper = [](void *args) -> void * {
+                aloitaRotta(*(int *)args);
+                return NULL;
+            };
+
+            ret = pthread_create(&threads[i], NULL, helper, &thread_args[i]);
+            if (!ret)
+                continue;
+        }
+
+        // Odotetaan säikeitä
+        for (int i = 0; i < thread_count; i++) {
+            ret = pthread_join(threads[i], NULL);
+            if (!ret)
+                continue;
+        }
+    }
+
+    std::printf("Kaikki rotat ulkona!\n");
 
     return 0;
 }
